@@ -69,11 +69,11 @@ The recommended way to set up the environment is with **conda** (Anaconda or Min
 ### 1. Create and activate a Conda environment
 
 Create a fresh environment (name it as you like, here: `saxscorr`):
-
+````
 ```bash
 conda create -n saxscorr python=3.11
 conda activate saxscorr
-````
+```
 
 You can also use Python 3.10 if preferred:
 
