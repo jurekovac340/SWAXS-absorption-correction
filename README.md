@@ -1,4 +1,4 @@
-````markdown
+
 # 3D Absorption Correction for X-ray Scattering in Cylindrical Capillaries
 
 This repository contains the Python code used to perform 3D absorption corrections for
@@ -69,7 +69,7 @@ The recommended way to set up the environment is with **conda** (Anaconda or Min
 ### 1. Create and activate a Conda environment
 
 Create a fresh environment (name it as you like, here: `saxscorr`):
-````
+
 ```bash
 conda create -n saxscorr python=3.11
 conda activate saxscorr
