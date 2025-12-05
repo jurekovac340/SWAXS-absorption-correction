@@ -284,7 +284,7 @@ but implements the empty-capillary wall-only correction.
 
 ## License
 
-This code is distributed under the **MIT License** (see `LICENSE`).
+This code is distributed under the ** GPL-3.0 license** (see `LICENSE`).
 
 Please cite the associated paper if you use this code in your own work.
 
