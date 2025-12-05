@@ -122,7 +122,7 @@ to avoid version conflicts.
 Once the environment is active and dependencies are installed, you can run:
 
 ```bash
-python corr_3d_cli.py --help
+python corr.py --help
 ```
 
 to see the available command-line options.
@@ -166,7 +166,7 @@ The main entry point is `corr_3d_cli.py`. It supports two modes:
 General syntax:
 
 ```bash
-python corr_3d_cli.py \
+python corr.py \
     --mode {sample|capillary} \
     -i INPUT_FILE \
     -o OUTPUT_FILE \
@@ -189,7 +189,7 @@ is used (the defaults are taken from the scripts).
 ### Example 1: Sample + wall (default parameters)
 
 ```bash
-python corr_3d_cli.py \
+python corr.py \
     --mode sample \
     -i HxOH_bn.bin \
     -o HxOH_bn_corr.csv
@@ -217,7 +217,7 @@ background capillary measurement.
 ### Example 3: Override geometry and attenuation parameters
 
 ```bash
-python corr_3d_cli.py \
+python corr.py \
     --mode sample \
     -i HxOH_bn.bin \
     -o HxOH_bn_R035_mu045.csv \
@@ -233,7 +233,7 @@ and wall attenuation `mu_w` are all set explicitly, overriding the defaults.
 ### Example 4: Reduce integration cost (for quick tests)
 
 ```bash
-python corr_3d_cli.py \
+python corr.py \
     --mode capillary \
     -i wecap_07f.bin \
     -o wecap_07f_fast.csv \
