@@ -6,12 +6,6 @@ small-angle / wide-angle X-ray scattering measured in cylindrical capillaries. T
 explicitly integrates the beam intensity distribution and attenuation through the
 capillary (sample + wall, or wall only) using **PyTorch** and **TorchQuad**.
 
-The code is intended to accompany the research paper:
-
-> **[Paper Title]**  
-> [Author list]  
-> [Journal / preprint, year]
-
 ---
 
 ## Repository Structure
