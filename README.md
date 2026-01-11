@@ -79,8 +79,8 @@ conda activate saxscorr
 ### 2. Clone the repository
 
 ```bash
-git clone https://github.com/<your-username>/<your-repo>.git
-cd <your-repo>
+git clone https://github.com/jurekovac340/SWAXS-abdorption-correction.git
+cd SWAXS-abdorption-correction
 ```
 
 ### 3. Install dependencies
