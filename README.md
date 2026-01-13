@@ -22,10 +22,10 @@ capillary (sample + wall, or wall only) using **PyTorch** and **TorchQuad**.
   geometric and physical parameters.
 
 - `width_profile.csv`  
-  Example vertical (y) beam profile.
+  Example width (z) beam profile.
 
 - `length_profile.csv`  
-  Example horizontal/longitudinal (z) beam profile.
+  Example length (x) beam profile.
 
 - `requirements.txt`  
   Python dependencies.
@@ -34,23 +34,17 @@ capillary (sample + wall, or wall only) using **PyTorch** and **TorchQuad**.
 
 ## Method Overview
 
-For each scattering vector \( q \), the algorithm:
+For each scattering vector _q_, the algorithm:
 
-1. Loads measured scattering data \( I(q) \) with uncertainties.
-2. Loads 1D beam profiles in the vertical (y) and longitudinal (z) directions,
+1. Loads measured scattering data _I(q)_ with uncertainties.
+2. Loads 1D beam profiles,
    and constructs fast interpolators (via `torch.bucketize`).
 3. Computes a beam-weighted normalization integral over the illuminated
    volume of the capillary (sample region or wall region).
-4. For a grid of scattering angles \( \theta \), evaluates the transmission /
-   attenuation factor \( A(\theta) \) using 3D numerical integration with
+4. For a grid of scattering angles _θ_, evaluates the transmission factor _A(θ)_ using 3D numerical integration with
    **TorchQuad**.
-5. Fits a cubic spline to \( A(\theta) \).
-6. Converts each \( q \) to \( \theta \) and corrects the intensity via
-   \[
-   I_{\text{corr}}(q) = \frac{I(q)}{A(\theta(q))}
-   \]
-   (with appropriate handling of errors/uncertainties).
-
+5. Fits a cubic spline to _A(θ)_.
+6. Converts each _q_ to _θ_ and corrects the intensity by computing _I(θ)/A(θ)_
 The output is a corrected intensity curve that can be directly used in
 subsequent data analysis.
 
@@ -251,14 +245,14 @@ import corr_3d_cap_torch as cap_corr
 df = sample_corr.read_scattering_file("HxOH_bn.bin")
 
 # 2) Load beam profiles
-I0_y = sample_corr.load_profile("width_profile.csv",  symmetric=False)
-I0_z = sample_corr.load_profile("length_profile.csv", symmetric=True)
+I0_z = sample_corr.load_profile("width_profile.csv",  symmetric=False)
+I0_x = sample_corr.load_profile("length_profile.csv", symmetric=True)
 
 # 3) Apply correction (sample + wall)
 df_corr = sample_corr.apply_absorption_correction(
     df,
-    I0_y,
     I0_z,
+    I0_x,
     R=0.34,
     mu=0.406,
     a=0.12,
