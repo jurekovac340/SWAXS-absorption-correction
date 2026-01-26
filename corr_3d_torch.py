@@ -639,7 +639,7 @@ def save_transmission_spline(
 
     output_path = os.path.join(output_folder, filename)
     df_spline.to_csv(output_path, index=False)
-    print(f"📁 Spline data saved to: {output_path}")
+    print(f" Spline data saved to: {output_path}")
 
 
 def save_transmission_raw_data(
@@ -659,7 +659,7 @@ def save_transmission_raw_data(
 
     output_path = os.path.join(output_folder, filename)
     df_raw.to_csv(output_path, index=False)
-    print(f"📁 Raw transmission data saved to: {output_path}")
+    print(f" Raw transmission data saved to: {output_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -787,7 +787,7 @@ if __name__ == "__main__":
 
     # 5) Save corrected data to CSV
     df_corrected.to_csv("HxOH_bn.csv", index=False)
-    print("✅ Corrected data saved to 'HxOH_bn.csv'")
+    print("Corrected data saved to 'HxOH_bn.csv'")
 
     # 6) Plot original vs corrected intensity
     plot_corrected_data(df_corrected)
