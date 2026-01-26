@@ -1,5 +1,5 @@
 """
-Wall-only absorption correction for X-ray scattering in a cylindrical capillary.
+Wall-only absorption correction for X-ray scattering in a cylindrical capillary. (integration points located inside wall)
 
 Overview
 --------
@@ -20,8 +20,6 @@ Conceptually, we:
    to obtain A(θ) = transmission factor of the capillary.
 4. Fit a cubic spline A(θ) vs θ.
 5. For each measured q, convert to θ, evaluate A(θ), and correct the intensity.
-
-Integration is performed using TorchQuad's MonteCarlo integrator on top of PyTorch.
 """
 
 import os
@@ -53,12 +51,7 @@ def interp1d_torch(
     xp: torch.Tensor,
     fp: torch.Tensor
 ) -> torch.Tensor:
-    """
-    Perform 1D linear interpolation in PyTorch (similar to np.interp).
-
-    Uses torch.bucketize to find the bracketing indices and then performs
-    standard linear interpolation. Values outside [xp[0], xp[-1]] are set to 0.
-
+   """
     Parameters
     ----------
     x : torch.Tensor
@@ -85,11 +78,10 @@ def interp1d_torch(
     y0 = fp[idx - 1]
     y1 = fp[idx]
 
-    # Linear interpolation
     slope = (y1 - y0) / (x1 - x0 + 1e-8)  # epsilon avoids division by zero
     y = y0 + slope * (x - x0)
 
-    # Simple extrapolation rule: outside the xp range -> 0
+
     y = torch.where(
         (x < xp[0]) | (x > xp[-1]),
         torch.tensor(0.0, device=x.device),
@@ -107,12 +99,7 @@ def load_profile(
     symmetric: bool = False,
     device: str = "cuda"
 ):
-    """
-    Load a 1D beam profile from CSV and return a torch-based interpolator.
-
-    The CSV file is expected to have two comma-separated columns:
-    (coordinate, intensity).
-
+   """
     Parameters
     ----------
     filename : str
@@ -129,6 +116,7 @@ def load_profile(
         A function `profile_fn(x)` where `x` is a torch.Tensor of positions
         and the return value is the interpolated intensity.
     """
+
     data = np.loadtxt(filename, delimiter=",")
     coord, intensity = data[:, 0], data[:, 1]
 
@@ -169,8 +157,6 @@ def compute_beam_volume_normalization(
     The integration domain is the annular region between radii R and R + t,
     but only on one side (x < 0). At the end we multiply by 2 to account
     for both halves of the cylinder.
-
-    Mapping
     -------
     - u ∈ [0, 1] → y ∈ [-a, a]
     - v ∈ [0, 1] → z ∈ [-b, b]
@@ -216,19 +202,12 @@ def compute_beam_volume_normalization(
     """
 
     def f(x: torch.Tensor, y: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
-        """
-        Factorized beam intensity at (x, y, z) = I_y(y) * I_z(z).
-        """
         I_y = I0_y_func(y)
         I_z = I0_z_func(z)
         return I_y * I_z
 
     def transformed_integrand(uvw: torch.Tensor) -> torch.Tensor:
-        """
-        Integrand expressed in unit cube (u, v, w) coordinates.
-
-        uvw : (N, 3) tensor with each component in [0, 1].
-        """
+       
         uvw = uvw.to(device)
         u, v, w = uvw[:, 0], uvw[:, 1], uvw[:, 2]
 
@@ -265,12 +244,7 @@ def compute_beam_volume_normalization(
 # ---------------------------------------------------------------------------
 
 def read_scattering_file(file_path: str) -> pd.DataFrame:
-    """
-    Read a plain-text scattering file with three columns:
-    q_nm^-1, intensity, sigma.
-
-    Lines that cannot be parsed as three floats are ignored.
-
+   """
     Parameters
     ----------
     file_path : str
@@ -317,28 +291,9 @@ def compute_correction_wall_1(
     """
     Compute the wall attenuation contribution for the x < 0 half of the capillary.
 
-    Geometry
-    --------
-    - We consider rays from a scattering point (x, y, z) to the detector at
-      (d*cosθ, d*sinθ, 0).
-    - We compute intersections of the ray with inner and outer radii (R, R + t).
-    - Path lengths:
-        l1_inc : "incidental" direct-through-sample path along x when the beam 
-                 passes through the central region.
-        l1_dif : additional in-sample path length inferred from quadratic roots
-                 when D1 > 0 and roots are positive.
-        l2     : path length to outer surface (wall + sample).
-
-      The total sample and wall path lengths are:
-        L_sample = l1_dif + l1_inc
-        L_wall   = l2 - L_sample
-
-    Attenuation factor at each point:
-        exp(-mu * L_sample - mu_w * L_wall) * I_y(y) * I_z(z)
-
     Parameters
     ----------
-    q, R, a, b, mu, t, mu_w, I0_y_func, I0_z_func, norm : see module docstring.
+    q, R, a, b, mu, t, mu_w, I0_y_func, I0_z_func, norm
     wavelength : float, optional
         X-ray wavelength.
     d : float, optional
@@ -349,25 +304,21 @@ def compute_correction_wall_1(
     Returns
     -------
     float
-        Monte Carlo estimate of the attenuation integral for wall_1.
+        unnormalized transmission integral for wall_1.
     """
     # Convert q → scattering angle θ (radians)
     theta = 2 * np.arcsin(np.clip(q * wavelength / (4 * np.pi), -1, 1))
     cos_theta, sin_theta = np.cos(theta), np.sin(theta)
 
     def f(x: torch.Tensor, y: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
-        """
-        Attenuation integrand at (x, y, z) for the x < 0 wall.
-        """
+     
         I_y = I0_y_func(y)
         I_z = I0_z_func(z)
         sqrt = torch.sqrt
 
-        # Ray direction to detector
         Dx = d * cos_theta
         Dy = d * sin_theta
 
-        # Quadratic coefficients for intersection with cylindrical shells
         A = (Dx - x) ** 2 + (Dy - y) ** 2
         B = 2 * (x * (Dx - x) + y * (Dy - y))
         C1 = x**2 + y**2 - R**2
@@ -376,31 +327,25 @@ def compute_correction_wall_1(
         D1 = B**2 - 4 * A * C1
         D2 = B**2 - 4 * A * C2
 
-        # Outer radius intersection
         D2_clipped = torch.clamp(D2, min=1e-10)
         t2 = (-B + sqrt(D2_clipped)) / (2 * A)
         length_scale = sqrt((Dx - x) ** 2 + (Dy - y) ** 2 + z**2)
         l2 = t2 * length_scale + x + sqrt((R + t) ** 2 - y**2)
 
-        # Incidental direct-through-sample path in central region:
-        # only where |y| < R and x > 0
+
         mask_l1_inc = (torch.abs(y) < R) & (x > 0)
         l1_inc = torch.zeros_like(x)
         l1_inc[mask_l1_inc] = 2 * sqrt(R**2 - y[mask_l1_inc] ** 2)
 
-        # Inner radius intersections
         D1_clipped = torch.clamp(D1, min=1e-10)
         t1p = (-B + sqrt(D1_clipped)) / (2 * A)
         t1m = (-B - sqrt(D1_clipped)) / (2 * A)
 
-        # Valid diffusive contribution where discriminant is positive
-        # and both roots are > 0
         valid_t1 = (D1 > 0) & (t1p > 0) & (t1m > 0)
 
         l1_dif = torch.zeros_like(x)
         l1_dif[valid_t1] = (t1p[valid_t1] - t1m[valid_t1]) * length_scale[valid_t1]
 
-        # Total sample and wall path lengths
         L_sample = l1_dif + l1_inc
         L_wall = l2 - L_sample
 
@@ -459,7 +404,7 @@ def compute_correction_wall_2(
     n_pts: int = 20,
 ) -> float:
     """
-    Compute the wall attenuation contribution for the x > 0 half of the capillary.
+    Compute the contribution for the x > 0 half of the capillary.
 
     This is analogous to `compute_correction_wall_1`, but with the mapping
     for x set to the positive side:
@@ -472,9 +417,7 @@ def compute_correction_wall_2(
     cos_theta, sin_theta = np.cos(theta), np.sin(theta)
 
     def f(x: torch.Tensor, y: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
-        """
-        Attenuation integrand at (x, y, z) for the x > 0 wall.
-        """
+   
         I_y = I0_y_func(y)
         I_z = I0_z_func(z)
         sqrt = torch.sqrt
@@ -495,12 +438,12 @@ def compute_correction_wall_2(
         length_scale = sqrt((Dx - x) ** 2 + (Dy - y) ** 2 + z**2)
         l2 = t2 * length_scale + x + sqrt((R + t) ** 2 - y**2)
 
-        # Incidental sample path
+
         mask_l1_inc = (torch.abs(y) < R) & (x > 0)
         l1_inc = torch.zeros_like(x)
         l1_inc[mask_l1_inc] = 2 * sqrt(R**2 - y[mask_l1_inc] ** 2)
 
-        # Inner radius intersection
+        
         D1_clipped = torch.clamp(D1, min=1e-10)
         t1p = (-B + sqrt(D1_clipped)) / (2 * A)
         t1m = (-B - sqrt(D1_clipped)) / (2 * A)
@@ -553,7 +496,7 @@ def compute_correction_wall_2(
 
 def _compute_A_for_theta(args):
     """
-    Internal helper: compute normalized wall attenuation A(θ) for a single angle.
+    Internal helper: compute normalized A(θ) for a single angle.
 
     Parameters
     ----------
@@ -611,7 +554,7 @@ def compute_transmission_vs_theta(
     n_pts: int = 20,
 ):
     """
-    Compute the normalized wall transmission A(θ) on a grid of θ values.
+    Compute  A(θ) on a grid of θ values.
 
     Parameters
     ----------
@@ -655,39 +598,12 @@ def compute_transmission_vs_theta(
 
 
 def fit_transmission_spline(trans_data):
-    """
-    Fit a cubic spline to transmission data A(θ).
 
-    Parameters
-    ----------
-    trans_data : list of tuple
-        (theta, A(theta)) pairs.
-
-    Returns
-    -------
-    scipy.interpolate.CubicSpline
-        Spline interpolant A(θ).
-    """
     theta_vals, A_vals = zip(*trans_data)
     return CubicSpline(theta_vals, A_vals, bc_type="natural")
 
 
 def evaluate_transmission_spline(theta, spline_func: CubicSpline):
-    """
-    Evaluate the cubic spline interpolated transmission A(θ).
-
-    Parameters
-    ----------
-    theta : float or np.ndarray
-        Scattering angle(s) in radians.
-    spline_func : CubicSpline
-        Spline fitted by `fit_transmission_spline`.
-
-    Returns
-    -------
-    float or np.ndarray
-        Interpolated A(θ).
-    """
     return spline_func(theta)
 
 
@@ -696,14 +612,7 @@ def evaluate_transmission_spline(theta, spline_func: CubicSpline):
 # ---------------------------------------------------------------------------
 
 def plot_transmission_fit(trans_data, coeffs):
-    """
-    Plot raw transmission data and a polynomial fit A(θ) (if available).
 
-    Note
-    ----
-    This routine expects a helper function `evaluate_transmission(theta, coeffs)`
-    to exist in the same namespace, which evaluates the polynomial at θ.
-    """
     theta_vals, A_vals = zip(*trans_data)
     theta_grid = np.linspace(min(theta_vals), max(theta_vals), 200)
     A_fitted = [evaluate_transmission(theta, coeffs) for theta in theta_grid]
@@ -729,9 +638,6 @@ def plot_transmission_fit(trans_data, coeffs):
 
 
 def plot_transmission_spline(trans_data, spline_func):
-    """
-    Plot raw A(θ) and cubic spline A_spline(θ) vs θ (degrees).
-    """
     theta_vals, A_vals = zip(*trans_data)
     theta_grid = np.linspace(min(theta_vals), max(theta_vals), 200)
     A_fitted = spline_func(theta_grid)
@@ -755,14 +661,6 @@ def plot_transmission_spline(trans_data, spline_func):
 
 
 def plot_corrected_data(df: pd.DataFrame):
-    """
-    Plot original and corrected intensities vs q.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        Must contain columns 'q_nm^-1', 'intensity', 'corrected_intensity'.
-    """
     q_vals = df["q_nm^-1"].to_numpy()
     original = df["intensity"].to_numpy()
     corrected = df["corrected_intensity"].to_numpy()
@@ -778,7 +676,6 @@ def plot_corrected_data(df: pd.DataFrame):
     plt.tight_layout()
     plt.show()
 
-
 # ---------------------------------------------------------------------------
 # Saving transmission data
 # ---------------------------------------------------------------------------
@@ -789,20 +686,7 @@ def save_transmission_spline(
     output_folder: str = "spline_output",
     filename: str = "transmission_spline_wecap.csv",
 ):
-    """
-    Save cubic-spline transmission A(θ) to CSV on a dense θ grid.
 
-    Parameters
-    ----------
-    spline_func : CubicSpline
-        Spline of A(θ).
-    theta_range : tuple
-        (theta_min, theta_max) in radians.
-    output_folder : str, optional
-        Destination folder (created if needed).
-    filename : str, optional
-        Output CSV name.
-    """
     os.makedirs(output_folder, exist_ok=True)
 
     theta_grid = np.linspace(theta_range[0], theta_range[1], 500)
@@ -817,7 +701,7 @@ def save_transmission_spline(
 
     output_path = os.path.join(output_folder, filename)
     df_spline.to_csv(output_path, index=False)
-    print(f"📁 Spline data saved to: {output_path}")
+    print(f" Spline data saved to: {output_path}")
 
 
 def save_transmission_raw_data(
@@ -825,18 +709,7 @@ def save_transmission_raw_data(
     output_folder: str = "spline_output",
     filename: str = "transmission_raw_wecap.csv",
 ):
-    """
-    Save raw (theta, A(theta)) transmission data to CSV.
-
-    Parameters
-    ----------
-    trans_data : list of tuple
-        (theta, A(theta)) pairs.
-    output_folder : str, optional
-        Destination folder.
-    filename : str, optional
-        CSV filename.
-    """
+   
     os.makedirs(output_folder, exist_ok=True)
 
     theta_vals, A_vals = zip(*trans_data)
@@ -849,7 +722,7 @@ def save_transmission_raw_data(
 
     output_path = os.path.join(output_folder, filename)
     df_raw.to_csv(output_path, index=False)
-    print(f"📁 Raw transmission data saved to: {output_path}")
+    print(f" Raw transmission data saved to: {output_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -871,12 +744,12 @@ def apply_absorption_correction(
     n_pts: int = 10,
 ) -> pd.DataFrame:
     """
-    Apply capillary-wall absorption correction to a scattering dataset.
+    Apply absorption correction to scattering data.
 
     Steps
     -----
     1. Compute beam-volume normalization over the (full) wall.
-    2. Compute A(θ) on θ-grid from 0 to 180 degrees.
+    2. Compute A(θ) on θ-grid.
     3. Fit cubic spline A(θ).
     4. For each q in df:
         - convert q → θ
@@ -943,7 +816,7 @@ def apply_absorption_correction(
 
 
 # ---------------------------------------------------------------------------
-# Main script
+# Main
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
@@ -955,7 +828,7 @@ if __name__ == "__main__":
     wavelength = 0.15406
     d = 267.0
 
-    # Number of Monte Carlo samples per θ
+    # Number of samples per θ
     n_pts = 2**27
 
     # 3) Load beam profiles (y: width, z: length)
@@ -978,7 +851,7 @@ if __name__ == "__main__":
         n_pts,
     )
     df_corrected.to_csv("cap.csv", index=False)
-    print("✅ Corrected data saved to 'cap.csv'")
+    print(" Corrected data saved to 'cap.csv'")
 
     # 5) Visualize corrected vs original
     plot_corrected_data(df_corrected)
