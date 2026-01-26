@@ -20,7 +20,7 @@ Key steps
    - Map unit cube (u, v, w) ∈ [0,1]^3 → (x, y, z) in cylindrical capillary.
    - For each point, compute path length inside sample and wall along the
      scattered ray, and the corresponding attenuation exp(-μ l_sample - μ_w l_wall).
-   - Weight by beam intensity profile and Jacobian of the transformation.
+   - Weight by beam intensity profiles.
 5. Fit a cubic spline to A(θ) for smooth interpolation.
 6. For each experimental q, convert to θ and evaluate A(θ).
 7. Divide measured intensity by A(θ) to obtain absorption-corrected intensity.
@@ -33,9 +33,6 @@ Dependencies
 - torch
 - torchquad
 - matplotlib (for diagnostic plots)
-
-The integration is potentially very expensive for large N (e.g. 2**27); start
-with small N for debugging, then increase as needed.
 """
 
 import os
@@ -71,11 +68,6 @@ def interp1d_torch(
     fp: torch.Tensor
 ) -> torch.Tensor:
     """
-    Perform 1D linear interpolation in PyTorch (similar to np.interp).
-
-    The function uses torch.bucketize to locate the interval indices and then
-    performs a simple linear interpolation. Out-of-bounds values are set to 0.
-
     Parameters
     ----------
     x : torch.Tensor
@@ -91,26 +83,22 @@ def interp1d_torch(
         Interpolated values at the points in `x`, with the same shape as `x.flatten()`.
         Values outside the range [xp[0], xp[-1]] are set to 0.
     """
-    # Flatten to 1D for bucketize operations
+    
     x = x.flatten()
 
-    # idx[i] gives the index such that xp[idx-1] <= x[i] < xp[idx]
+ 
     idx = torch.bucketize(x, xp)
 
-    # Clamp to [1, len(xp) - 1] so that idx-1 and idx are valid indices
+
     idx = idx.clamp(1, len(xp) - 1)
 
-    # Left and right x- and y-values surrounding each query point
     x0 = xp[idx - 1]
     x1 = xp[idx]
     y0 = fp[idx - 1]
     y1 = fp[idx]
 
-    # Linear interpolation slope and value
     slope = (y1 - y0) / (x1 - x0 + 1e-8)  # small epsilon avoids division by zero
     y = y0 + slope * (x - x0)
-
-    # Set values outside the [xp[0], xp[-1]] range to 0 (simple extrapolation rule)
     y = torch.where(
         (x < xp[0]) | (x > xp[-1]),
         torch.tensor(0.0, device=x.device),
@@ -129,9 +117,6 @@ def load_profile(
     device: str = "cuda"
 ):
     """
-    Load a 1D beam profile from a CSV file and return a torch-based interpolator.
-
-    The CSV is expected to have two columns: position and intensity.
 
     Parameters
     ----------
@@ -149,7 +134,7 @@ def load_profile(
         A function `profile_fn(x)` where `x` is a torch tensor of positions, and
         the return value is the interpolated intensity at those positions.
     """
-    # Load as np.ndarray with shape (N, 2)
+
     data = np.loadtxt(filename, delimiter=",")
     coord, intensity = data[:, 0], data[:, 1]
 
@@ -159,16 +144,13 @@ def load_profile(
         coord = np.concatenate((-coord[::-1], coord))
         intensity = np.concatenate((intensity[::-1], intensity))
 
-    # Convert to torch tensors
+
     coord_tensor = torch.tensor(coord, dtype=torch.float32, device=device)
     intensity_tensor = torch.tensor(intensity, dtype=torch.float32, device=device)
 
     def profile_fn(x: torch.Tensor) -> torch.Tensor:
-        """
-        Interpolate beam intensity at positions x using torch-based 1D interpolation.
-        """
         return interp1d_torch(x, coord_tensor, intensity_tensor)
-
+       
     return profile_fn
 
 
@@ -192,7 +174,6 @@ def compute_beam_volume_normalization(
 
     This computes:
         ∫∫∫ I_y(y) I_z(z) dV
-    over the sample volume, using a coordinate transform from unit cube (u,v,w).
 
     Geometry / mapping
     ------------------
@@ -338,13 +319,6 @@ def compute_correction_sample(
     device: str = "cuda",
 ) -> float:
     """
-    Compute the attenuation / transmission factor for a single scattering vector q.
-
-    The function converts q → θ and then integrates over the sample volume using
-    a TorchQuad Simpson integrator. For each point (x, y, z) in the cylindrical
-    sample, we compute the path length inside the sample and wall for the scattered
-    ray going to the detector and apply exponential attenuation.
-
     Parameters
     ----------
     q : float
@@ -377,45 +351,26 @@ def compute_correction_sample(
     Returns
     -------
     float
-        Integrated attenuation factor (unnormalized). The final A(θ) will be
-        obtained by dividing by `norm`.
+        unnormalized transmission integral
     """
-    # Convert q to scattering angle θ (in radians)
     theta = 2 * np.arcsin(np.clip(q * wavelength / (4 * np.pi), -1, 1))
     cos_theta, sin_theta = np.cos(theta), np.sin(theta)
 
     def f(x: torch.Tensor, y: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
-        """
-        Attenuation integrand at a given point (x, y, z).
-
-        Steps
-        -----
-        1. Evaluate beam intensity at y, z.
-        2. Compute geometry for the scattered ray to detector.
-        3. Solve for intersection of this ray with sample inner and outer radii,
-           giving path lengths l1 (inside sample) and l2 (sample + wall).
-        4. Compute exp(-mu*l1 - mu_w*(l2 - l1)) * I_y * I_z.
-        """
-        # Beam intensities at this point
+   
         I_y = I0_y_func(y)
         I_z = I0_z_func(z)
 
-        # Define shorthand for detector coordinates in the scattering plane
-        # Detector point for a given θ in x-y plane (z direction is unaffected)
         Dx = d * cos_theta
         Dy = d * sin_theta
 
-        # Quadratic coefficients (parametric ray-circle intersection)
-        # A s^2 + B s + C = 0, where s is parameter along the ray
         A = (Dx - x) ** 2 + (Dy - y) ** 2
         B = 2 * (x * (Dx - x) + y * (Dy - y))
 
-        # ---------- Intersection with inner radius: r = R ----------
         C1 = x**2 + y**2 - R**2
         D1 = torch.clamp(B**2 - 4 * A * C1, min=1e-10)  # discriminant
         t1 = (-B + torch.sqrt(D1)) / (2 * A)
 
-        # Path length from scattering point to inner surface + distance from center?
         l1 = (
             t1
             * torch.sqrt((Dx - x) ** 2 + (Dy - y) ** 2 + z**2)
@@ -423,7 +378,6 @@ def compute_correction_sample(
             + torch.sqrt(R**2 - y**2)
         )
 
-        # ---------- Intersection with outer radius: r = R + t ----------
         C2 = x**2 + y**2 - (R + t) ** 2
         D2 = torch.clamp(B**2 - 4 * A * C2, min=1e-10)
         t2 = (-B + torch.sqrt(D2)) / (2 * A)
@@ -435,27 +389,18 @@ def compute_correction_sample(
             + torch.sqrt((R + t) ** 2 - y**2)
         )
 
-        # Attenuation factor: sample (mu) + wall (mu_w)
         return torch.exp(-mu * l1 - mu_w * (l2 - l1)) * I_y * I_z
 
     def transformed_integrand(uvw: torch.Tensor) -> torch.Tensor:
-        """
-        Integrand in unit cube coordinates (u, v, w) for this θ/q.
-
-        Maps unit cube → physical (x, y, z) and multiplies by Jacobian.
-        """
         uvw = uvw.to(device)
         u, v, w = uvw[:, 0], uvw[:, 1], uvw[:, 2]
-
-        # Map to y, z in illuminated region
+       
         y = 2 * a * u - a
         z = 2 * b * v - b
 
-        # x spans the chord inside circle of radius R
         sqrt_term = torch.sqrt(R**2 - y**2)
         x = 2 * sqrt_term * w - sqrt_term
 
-        # Jacobian for change of variables
         J = 8 * a * b * sqrt_term
 
         return f(x, y, z) * J
@@ -506,15 +451,12 @@ def _compute_A_for_theta(args):
         n_pts,
     ) = args
 
-    # Convert θ back to q for reuse of compute_correction_sample
     q = (4 * np.pi / wavelength) * np.sin(theta / 2)
 
-    # Unnormalized attenuation integral for this q
     AS = compute_correction_sample(
         q, R, a, b, mu, t, mu_w, I0_y_func, I0_z_func, norm, wavelength, d, n_pts
     )
 
-    # Normalize by beam volume normalization
     A = AS / norm
     return (theta, A)
 
@@ -535,7 +477,6 @@ def compute_transmission_vs_theta(
     n_pts: int = 20,
 ):
     """
-    Compute attenuation / transmission factor A(θ) on a grid of θ values.
 
     Parameters
     ----------
@@ -582,9 +523,8 @@ def compute_transmission_vs_theta(
 
 
 def fit_transmission_spline(trans_data):
+   
     """
-    Fit a cubic spline to the discrete transmission data A(θ).
-
     Parameters
     ----------
     trans_data : list of tuple
@@ -595,14 +535,13 @@ def fit_transmission_spline(trans_data):
     scipy.interpolate.CubicSpline
         Cubic spline object representing A(θ).
     """
+   
     theta_vals, A_vals = zip(*trans_data)
     return CubicSpline(theta_vals, A_vals, bc_type="natural")
 
 
 def evaluate_transmission_spline(theta: float, spline_func: CubicSpline) -> float:
     """
-    Evaluate the cubic spline A(θ) at a given θ.
-
     Parameters
     ----------
     theta : float or np.ndarray
@@ -686,24 +625,6 @@ def save_transmission_spline(
     output_folder: str = "spline_output",
     filename: str = "transmission_spline_wwater_15d2024.csv",
 ):
-    """
-    Save the cubic spline representation of A(θ) to a CSV file.
-
-    The file contains:
-        theta_deg : θ in degrees (dense grid)
-        A(theta)  : corresponding spline values
-
-    Parameters
-    ----------
-    spline_func : CubicSpline
-        Fitted spline A(θ).
-    theta_range : tuple
-        (theta_min, theta_max) in radians.
-    output_folder : str, optional
-        Folder where the CSV will be written (created if it does not exist).
-    filename : str, optional
-        Name of the CSV file.
-    """
     os.makedirs(output_folder, exist_ok=True)
 
     theta_grid = np.linspace(theta_range[0], theta_range[1], 500)
@@ -726,22 +647,6 @@ def save_transmission_raw_data(
     output_folder: str = "spline_output",
     filename: str = "transmission_raw_wwater_15d2024.csv",
 ):
-    """
-    Save the raw transmission data (theta, A(theta)) to a CSV file.
-
-    The file contains:
-        theta_deg : θ in degrees
-        A(theta)  : raw computed values
-
-    Parameters
-    ----------
-    trans_data : list of tuple
-        (theta, A(theta)) pairs.
-    output_folder : str, optional
-        Folder where the CSV will be written (created if it does not exist).
-    filename : str, optional
-        Name of the CSV file.
-    """
     os.makedirs(output_folder, exist_ok=True)
 
     theta_vals, A_vals = zip(*trans_data)
@@ -777,8 +682,6 @@ def apply_absorption_correction(
 ) -> pd.DataFrame:
     """
     Apply absorption correction to a scattering dataset.
-
-    Pipeline
     --------
     1. Compute beam-volume normalization integral.
     2. Compute A(θ) on a grid of θ values (here 0–60 degrees).
@@ -806,11 +709,10 @@ def apply_absorption_correction(
     pandas.DataFrame
         Copy of `df` with an additional column 'corrected_intensity'.
     """
-    # 1) Beam-volume normalization (geometry + beam profile, no attenuation)
+
     norm = compute_beam_volume_normalization(I0_y_func, I0_z_func, R, t, a, b, n_pts)
     print("normalization factor sample = ", norm)
 
-    # 2) Compute attenuation A(θ) on a coarse grid (0–60 degrees)
     theta_vals = np.linspace(0, np.radians(60), 13)
     trans_data = compute_transmission_vs_theta(
         R,
@@ -828,23 +730,18 @@ def apply_absorption_correction(
         n_pts,
     )
 
-    # 3) Fit spline to the discrete A(θ) data
     spline_func = fit_transmission_spline(trans_data)
 
-    # Optional diagnostics: plot and save transmission curve
     plot_transmission_spline(trans_data, spline_func)
     save_transmission_spline(spline_func, (min(theta_vals), max(theta_vals)))
     save_transmission_raw_data(trans_data)
 
-    # 4) Loop over scattering data and correct intensities
     corrected_intensities = []
     for _, row in df.iterrows():
         q = row["q_nm^-1"]
 
-        # Convert q to θ
         theta = 2 * np.arcsin(np.clip(q * wavelength / (4 * np.pi), -1, 1))
 
-        # Evaluate A(θ). If A(θ) <= 0, fall back to 0 to avoid division by zero.
         A_interp = evaluate_transmission_spline(theta, spline_func)
         corrected = row["intensity"] / A_interp if A_interp > 0 else 0.0
         corrected_intensities.append(corrected)
@@ -855,7 +752,7 @@ def apply_absorption_correction(
 
 
 # ---------------------------------------------------------------------------
-# Main script interface
+# Main
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
@@ -866,7 +763,7 @@ if __name__ == "__main__":
     R, mu, a, b, t, mu_w = 0.34, 0.406, 0.12, 12.0, 0.01, 8.099
     wavelength = 0.15406  # nm
     d = 267.0             # sample-to-detector distance (same as used above)
-    n_pts = 2**27         # VERY large integration resolution – adjust as needed
+    n_pts = 2**27         # large integration resolution – adjust as needed
 
     # 3) Load beam profiles along y and z
     I0_y_func = load_profile("width_profile.csv", symmetric=False)
