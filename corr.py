@@ -166,9 +166,9 @@ def main():
     # 1) Load scattering data (both modules expose read_scattering_file)
     df = mod.read_scattering_file(args.input)
 
-    # 2) Load beam profiles
-    I0_z_func = mod.load_profile(args.height_profile, symmetric=False)
-    I0_x_func = mod.load_profile(args.width_profile, symmetric=True)
+    # 2) Load beam profiles.....BEWARE... the coordinate convention in the source code (x,y,z) is different from that in the original paper (y,z,x) and in the top level usage. 
+    I0_y_func = mod.load_profile(args.height_profile, symmetric=False)
+    I0_z_func = mod.load_profile(args.width_profile, symmetric=True)
 
     # 3) Apply the corresponding absorption correction
     if args.mode == "sample":
