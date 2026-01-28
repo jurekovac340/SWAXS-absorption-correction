@@ -158,8 +158,8 @@ python corr.py \
     --mode {sample|capillary} \
     -i INPUT_FILE \
     -o OUTPUT_FILE \
+    [--height-profile HEIGHT_PROFILE.csv] \
     [--width-profile WIDTH_PROFILE.csv] \
-    [--length-profile LENGTH_PROFILE.csv] \
     [--R RADIUS] \
     [--mu MU_SAMPLE] \
     [--a A_HALF_WIDTH] \
