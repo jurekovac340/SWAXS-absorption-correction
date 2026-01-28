@@ -6,13 +6,13 @@ Unified CLI for 3D absorption correction:
 
 Usage examples
 --------------
-# Full correction (sample + wall), defaults
+# Sample mode, all defaults
 python corr.py \
     --mode sample \
     -i HxOH_bn.bin \
     -o HxOH_bn_corr.csv
 
-# Empty capillary, custom geometry and mu_w
+# Capillary mode, some overriden parameters
 python corr.py \
     --mode capillary \
     -i wecap_07f.bin \
@@ -30,15 +30,14 @@ import corr_3d_cap_torch as cap_corr
 def parse_args():
     parser = argparse.ArgumentParser(
         description="3D absorption correction in a cylindrical capillary "
-                    "(sample+wall or empty-capillary wall-only)."
     )
 
     parser.add_argument(
         "-m", "--mode",
         choices=["sample", "capillary"],
         required=True,
-        help="Correction mode: 'sample' = full sample+wall, "
-             "'capillary' = empty capillary (wall only)."
+        help="Correction mode: 'sample' = scattering from sample, "
+             "'capillary' = scattering from capillary."
     )
 
     parser.add_argument(
@@ -54,35 +53,35 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--width-profile",
-        default="width_profile.csv",
-        help="CSV with vertical (y) beam profile [default: width_profile.csv]."
+        "--height-profile",
+        default="height_profile.csv",
+        help="CSV with vertical (z) beam profile [default: height_profile.csv]."
     )
 
     parser.add_argument(
         "--length-profile",
-        default="length_profile.csv",
-        help="CSV with horizontal/longitudinal (z) beam profile "
-             "[default: length_profile.csv]."
+        default="width_profile.csv",
+        help="CSV with horizontal (x) beam profile "
+             "[default: width_profile.csv]."
     )
 
     # Geometry / physical parameters: CLI can override, otherwise mode defaults are used.
     parser.add_argument("--R", type=float, default=None,
-                        help="Capillary radius [cm?] (default: mode-specific).")
+                        help="Capillary inner radius [mm] (default: mode-specific).")
     parser.add_argument("--mu", type=float, default=None,
-                        help="Linear attenuation coefficient of sample (default: mode-specific).")
+                        help="Linear attenuation coefficient of sample [mm-1] (default: mode-specific).")
     parser.add_argument("--a", type=float, default=None,
-                        help="Beam half-width in y (default: mode-specific).")
+                        help="Beam half-height in z [mm] (default: mode-specific).")
     parser.add_argument("--b", type=float, default=None,
-                        help="Beam half-length in z (default: mode-specific).")
+                        help="Beam half-width in x [mm] (default: mode-specific).")
     parser.add_argument("--t", type=float, default=None,
-                        help="Capillary wall thickness (default: mode-specific).")
+                        help="Capillary wall thickness [mm] (default: mode-specific).")
     parser.add_argument("--mu_w", type=float, default=None,
                         help="Linear attenuation coefficient of wall (default: mode-specific).")
     parser.add_argument("--wavelength", type=float, default=None,
                         help="X-ray wavelength in nm (default: mode-specific).")
     parser.add_argument("--d", type=float, default=None,
-                        help="Sample–detector distance (default: mode-specific).")
+                        help="Sample–detector distance [mm] (default: mode-specific).")
     parser.add_argument("--n-pts", type=int, default=None,
                         help="Number of integration points for TorchQuad "
                              "(default: mode-specific).")
@@ -151,8 +150,8 @@ def main():
     print(f"Mode          : {args.mode}")
     print(f"Input file    : {args.input}")
     print(f"Output file   : {args.output}")
-    print(f"Width profile : {args.width_profile}")
-    print(f"Length profile: {args.length_profile}")
+    print(f"Height profile : {args.height_profile}")
+    print(f"Width profile: {args.width_profile}")
     print("Parameters:")
     print(f"  R          = {R}")
     print(f"  mu         = {mu}")
@@ -168,8 +167,8 @@ def main():
     df = mod.read_scattering_file(args.input)
 
     # 2) Load beam profiles
-    I0_y_func = mod.load_profile(args.width_profile, symmetric=False)
-    I0_z_func = mod.load_profile(args.length_profile, symmetric=True)
+    I0_z_func = mod.load_profile(args.height_profile, symmetric=False)
+    I0_x_func = mod.load_profile(args.width_profile, symmetric=True)
 
     # 3) Apply the corresponding absorption correction
     if args.mode == "sample":
