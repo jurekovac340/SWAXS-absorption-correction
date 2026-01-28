@@ -187,9 +187,9 @@ def compute_beam_volume_normalization(
     t : float
         Wall thickness.
     a : float
-        Half-width of the illuminated region in y.
+        Half-Height of the illuminated region.
     b : float
-        Half-height (or half-length) of the illuminated region in z.
+        Half-width of the illuminated region.
     n_pts : int, optional
         Number of samples for Monte Carlo integration.
     device : str, optional
