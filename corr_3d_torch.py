@@ -766,8 +766,8 @@ if __name__ == "__main__":
     n_pts = 2**27         # large integration resolution – adjust as needed
 
     # 3) Load beam profiles along y and z
-    I0_y_func = load_profile("width_profile.csv", symmetric=False)
-    I0_z_func = load_profile("length_profile.csv", symmetric=True)
+    I0_y_func = load_profile("height_profile.csv", symmetric=False)
+    I0_z_func = load_profile("width_profile.csv", symmetric=True)
 
     # 4) Apply absorption correction
     df_corrected = apply_absorption_correction(
