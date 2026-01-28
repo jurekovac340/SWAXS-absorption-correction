@@ -21,11 +21,11 @@ capillary (sample + wall, or wall only) using **PyTorch** and **TorchQuad**.
   `--mode sample` / `--mode capillary` switch, plus options to override
   geometric and physical parameters.
 
-- `width_profile.csv`  
-  Example width (z) beam profile.
+- `height_profile.csv`  
+  Example height (z) beam profile.
 
-- `length_profile.csv`  
-  Example length (x) beam profile.
+- `width_profile.csv`  
+  Example width (x) beam profile.
 
 - `requirements.txt`  
   Python dependencies.
@@ -132,12 +132,12 @@ position, intensity
 ...
 ```
 
-* `width_profile.csv` — vertical (y) profile.
-* `length_profile.csv` — longitudinal (z) profile.
+* `height_profile.csv` — vertical (z) profile.
+* `width_profile.csv` — longitudinal (x) profile.
 
 For convenience, the CLI assumes:
 
-* `width_profile.csv` is **not** automatically mirrored.
+* `height_profile.csv` is **not** automatically mirrored.
 * `length_profile.csv` is treated as **symmetric** around zero.
 
 You can change this behavior directly in `corr_3d_cli.py` if needed.
@@ -148,10 +148,10 @@ You can change this behavior directly in `corr_3d_cli.py` if needed.
 
 The main entry point is `corr_3d_cli.py`. It supports two modes:
 
-* `--mode sample`    → sample + wall correction (uses `corr_3d_torch.py`)
-* `--mode capillary` → empty-capillary wall-only correction (uses `corr_3d_cap_torch.py`)
+* `--mode sample`    → The volume of integration is the sample (uses `corr_3d_torch.py`)
+* `--mode capillary` → The volume of integration is the capillary (uses `corr_3d_cap_torch.py`)
 
-General syntax:
+General usage:
 
 ```bash
 python corr.py \
@@ -199,8 +199,7 @@ python corr.py \
     -o wecap_07f_corr.csv
 ```
 
-This applies only the capillary-wall correction, appropriate for an empty or
-background capillary measurement.
+This applies only the capillary-wall correction, appropriate for an empty capillary measurement.
 
 ### Example 3: Override geometry and attenuation parameters
 
@@ -245,8 +244,8 @@ import corr_3d_cap_torch as cap_corr
 df = sample_corr.read_scattering_file("HxOH_bn.bin")
 
 # 2) Load beam profiles
-I0_z = sample_corr.load_profile("width_profile.csv",  symmetric=False)
-I0_x = sample_corr.load_profile("length_profile.csv", symmetric=True)
+I0_z = sample_corr.load_profile("heigth_profile.csv",  symmetric=False)
+I0_x = sample_corr.load_profile("width_profile.csv", symmetric=True)
 
 # 3) Apply correction (sample + wall)
 df_corr = sample_corr.apply_absorption_correction(
