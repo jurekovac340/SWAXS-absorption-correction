@@ -831,9 +831,9 @@ if __name__ == "__main__":
     # Number of samples per θ
     n_pts = 2**27
 
-    # 3) Load beam profiles (y: width, z: length)
-    I0_y_func = load_profile("width_profile.csv", symmetric=False)
-    I0_z_func = load_profile("length_profile.csv", symmetric=True)
+    # 3) Load beam profiles (y: height, z: width)
+    I0_y_func = load_profile("height_profile.csv", symmetric=False)
+    I0_z_func = load_profile("width_profile.csv", symmetric=True)
 
     # 4) Apply correction
     df_corrected = apply_absorption_correction(
