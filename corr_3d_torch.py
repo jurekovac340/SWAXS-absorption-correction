@@ -760,7 +760,7 @@ if __name__ == "__main__":
     df = read_scattering_file("HxOH_bn.bin")
 
     # 2) Define experimental / geometric parameters
-    R, mu, a, b, t, mu_w = 0.34, 0.406, 0.12, 12.0, 0.01, 8.099
+    R, mu, a, b, t, mu_w = 0.34, 0.4061, 0.12, 12.0, 0.01, 8.099
     wavelength = 0.15406  # nm
     d = 267.0             # sample-to-detector distance (same as used above)
     n_pts = 2**27         # large integration resolution – adjust as needed
