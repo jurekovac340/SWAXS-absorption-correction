@@ -63,13 +63,6 @@ conda create -n saxscorr python=3.11
 conda activate saxscorr
 ```
 
-You can also use Python 3.10 if preferred:
-
-```bash
-conda create -n saxscorr python=3.10
-conda activate saxscorr
-```
-
 ### 2. Clone the repository
 
 ```bash
@@ -185,7 +178,7 @@ python corr.py \
 
 This will:
 
-* read `HxOH_bn.bin` (3-column text file),
+* read `HxOH_bn.bin` (a .pdh type file),
 * use `width_profile.csv` and `length_profile.csv` in the current directory,
 * perform full sample + wall absorption correction,
 * write the corrected data to `HxOH_bn_corr.csv`.
