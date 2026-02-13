@@ -67,27 +67,27 @@ def interp1d_torch(
     torch.Tensor
         Interpolated values at `x.flatten()`.
     """
-    x = x.flatten()
+   x = x.flatten()
 
     # idx[i] is s.t. xp[idx-1] <= x[i] < xp[idx]
-    idx = torch.bucketize(x, xp)
-    idx = idx.clamp(1, len(xp) - 1)
+   idx = torch.bucketize(x, xp)
+   idx = idx.clamp(1, len(xp) - 1)
 
-    x0 = xp[idx - 1]
-    x1 = xp[idx]
-    y0 = fp[idx - 1]
-    y1 = fp[idx]
+   x0 = xp[idx - 1]
+   x1 = xp[idx]
+   y0 = fp[idx - 1]
+   y1 = fp[idx]
 
-    slope = (y1 - y0) / (x1 - x0 + 1e-8)  # epsilon avoids division by zero
-    y = y0 + slope * (x - x0)
+   slope = (y1 - y0) / (x1 - x0 + 1e-8)  # epsilon avoids division by zero
+   y = y0 + slope * (x - x0)
 
 
-    y = torch.where(
+   y = torch.where(
         (x < xp[0]) | (x > xp[-1]),
         torch.tensor(0.0, device=x.device),
         y,
     )
-    return y
+   return y
 
 
 # ---------------------------------------------------------------------------
@@ -117,24 +117,24 @@ def load_profile(
         and the return value is the interpolated intensity.
     """
 
-    data = np.loadtxt(filename, delimiter=",")
-    coord, intensity = data[:, 0], data[:, 1]
+   data = np.loadtxt(filename, delimiter=",")
+   coord, intensity = data[:, 0], data[:, 1]
 
-    if symmetric:
+   if symmetric:
         # Mirror profile about 0 (negatives added in reverse order)
         coord = np.concatenate((-coord[::-1], coord))
         intensity = np.concatenate((intensity[::-1], intensity))
 
-    coord_tensor = torch.tensor(coord, dtype=torch.float32, device=device)
-    intensity_tensor = torch.tensor(intensity, dtype=torch.float32, device=device)
+   coord_tensor = torch.tensor(coord, dtype=torch.float32, device=device)
+   intensity_tensor = torch.tensor(intensity, dtype=torch.float32, device=device)
 
-    def profile_fn(x: torch.Tensor) -> torch.Tensor:
+   def profile_fn(x: torch.Tensor) -> torch.Tensor:
         """
         Interpolate intensity at positions x using torch-based interpolation.
         """
         return interp1d_torch(x, coord_tensor, intensity_tensor)
 
-    return profile_fn
+   return profile_fn
 
 
 # ---------------------------------------------------------------------------
@@ -255,8 +255,8 @@ def read_scattering_file(file_path: str) -> pd.DataFrame:
     pandas.DataFrame
         DataFrame with columns ['q_nm^-1', 'intensity', 'sigma'].
     """
-    clean_rows = []
-    with open(file_path, "r") as f:
+   clean_rows = []
+   with open(file_path, "r") as f:
         for line in f:
             parts = line.strip().split()
             if len(parts) == 3:
@@ -266,7 +266,7 @@ def read_scattering_file(file_path: str) -> pd.DataFrame:
                 except ValueError:
                     continue
 
-    return pd.DataFrame(clean_rows, columns=["q_nm^-1", "intensity", "sigma"])
+   return pd.DataFrame(clean_rows, columns=["q_nm^-1", "intensity", "sigma"])
 
 
 # ---------------------------------------------------------------------------
