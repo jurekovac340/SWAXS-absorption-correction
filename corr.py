@@ -59,7 +59,7 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--length-profile",
+        "--width-profile",
         default="width_profile.csv",
         help="CSV with horizontal (x) beam profile "
              "[default: width_profile.csv]."
