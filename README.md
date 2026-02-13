@@ -122,7 +122,7 @@ to see the available command-line options.
 
 ### 2. Beam profiles
 
-Both `width_profile.csv` and `length_profile.csv` are simple CSV files with
+Both `width_profile.csv` and `height_profile.csv` are simple CSV files with
 **two columns**:
 
 ```text
